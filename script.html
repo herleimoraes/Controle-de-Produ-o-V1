@@ -1,0 +1,94 @@
+<script>
+  /**
+   * Alterna entre as telas de Dashboard e Formulário
+   */
+  function trocarTela(idTela) {
+    document.querySelectorAll('.tela').forEach(t => t.classList.remove('ativa'));
+    document.getElementById(idTela).classList.add('ativa');
+  }
+
+  /**
+   * Configura os dados dinâmicos do rodapé
+   */
+  function configurarRodape() {
+    const agora = new Date();
+    const hora = agora.getHours();
+    
+    // Formatação de data (DD/MM/YYYY)
+    const dia = String(agora.getDate()).padStart(2, '0');
+    const mes = String(agora.getMonth() + 1).padStart(2, '0');
+    const ano = agora.getFullYear();
+    document.getElementById('data-atual').innerText = `${dia}/${mes}/${ano}`;
+
+    let mensagem = "";
+    if (hora >= 5 && hora < 12) mensagem = "Bom dia! Café no bule e mãos à obra!";
+    else if (hora >= 12 && hora < 18) mensagem = "Ótimo dia de trabalho! O progresso não para.";
+    else mensagem = "Boa noite! Finalizando os turnos com excelência.";
+    
+    document.getElementById('saudacao').innerText = mensagem;
+  }
+
+  document.getElementById('meuFormulario').onsubmit = async function(e) {
+    e.preventDefault();
+    
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processando Arquivos...';
+
+    // Função robusta para ler o arquivo
+    const obterDadosArquivo = (campoId) => {
+      return new Promise((resolve) => {
+        const arquivo = document.getElementById(campoId).files[0];
+        if (!arquivo) return resolve(null);
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve({
+            data: e.target.result.split(',')[1], // Pega apenas a parte Base64
+            type: arquivo.type,
+            name: arquivo.name
+          });
+        };
+        reader.readAsDataURL(arquivo);
+      });
+    };
+
+    try {
+      const pdfPedido = await obterDadosArquivo('pdfPedido');
+      const pdfNota = await obterDadosArquivo('pdfNota');
+
+      const dados = {
+        numeroPedido: document.getElementById('numeroPedido').value,
+        dataEntrega: document.getElementById('dataEntrega').value,
+        nomeCliente: document.getElementById('nomeCliente').value,
+        descricao: document.getElementById('descricao').value,
+        pdfPedido: pdfPedido,
+        pdfNota: pdfNota
+      };
+
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando ao Drive...';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          alert(res);
+          document.getElementById('meuFormulario').reset();
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-floppy me-2"></i>SALVAR PEDIDO';
+          trocarTela('telaDashboard');
+        })
+        .withFailureHandler(function(err) {
+          alert("Erro crítico: " + err);
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-floppy me-2"></i>SALVAR PEDIDO';
+        })
+        .processarFormulario(dados);
+
+    } catch (erro) {
+      alert("Erro ao ler os arquivos: " + erro);
+      btn.disabled = false;
+    }
+  };
+
+  // Inicialização ao carregar
+  window.onload = configurarRodape;
+</script>
